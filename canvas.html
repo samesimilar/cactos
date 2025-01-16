@@ -7,7 +7,7 @@
 			
 			canvas {
 				border: 1px solid black;
-				transform: scale(1) translate(64px,32px);
+				transform: scale(2) translate(64px,32px);
 			}
 		</style>
 	</head>
@@ -38,6 +38,53 @@
 				const ctx = getContext();
 				ctx.putImageData(screen, 0, 0);
 			}
+			function calcxpos(line) {
+			  return ((line - 1) * 11) + ((line > 0) * 9 );
+			}
+			function clearLine(lineNum) {
+			  var i, j;
+			  const screen = getScreen();
+			
+			  // if the first line, also clear the row of pixels right above...
+			  // fixes a problem if an old 'set line' style patch is loaded after a newer graphics patch
+			  // otherwise this row of pixels might not be cleared 
+			  if (lineNum == 1) 
+				  for (i = 0; i < 128; i++)				  			
+						  put_pixel(0, i, 8, screen);
+			
+			  for (i = 0; i < 128; i++)
+				for (j = 0; j < 11; j++)
+				  put_pixel(0, i, j + calcxpos(lineNum), screen);
+				  
+				putScreen(screen);
+			
+			}
+			function setLine(lineNum, line) {
+			  const screen = getScreen();
+			  var i, len;
+			
+			  clearLine(lineNum);
+			
+			  len = line.length;
+			
+			  
+			  println_8(screen, line, (len > 21 ? 21 : len), 2, calcxpos(lineNum) + 1);
+			  putScreen(screen);
+			}
+			
+			function invertLine(lineNum) {
+			  const screen = getScreen();
+			  var l1 = calcxpos(lineNum);
+			  var l2 = calcxpos(lineNum + 1);
+
+			  gInvertArea(screen, 0, l1, 128, l2 - l1);
+			  putScreen(screen);
+			  
+			}
+			
+			function gFlip(screen) {
+				putScreen(screen);
+			}
 			function getStyle(color) {
 				if (color == 0) {
 					return "black";
@@ -51,47 +98,48 @@
 				imageData.data[d+1] = color;
 				imageData.data[d+2] = color;
 			}
-			function put_pixel(color, x, y) {
-				const ctx = getContext();
-				imageData = ctx.getImageData(0, 0, ctxWidth, ctxHeight);
+			function put_pixel(color, x, y, imageData) {
 				put_pixel_in_image(imageData, x, y, color);
-				ctx.putImageData(imageData, 0, 0);
+			}
+			function invert_pixel_in_image(imageData, x, y) {
+				const d = (x * 4) + (y * imageData.width * 4);
+				imageData.data[d] = 255 - imageData.data[d];
+				imageData.data[d+1] = 255 - imageData.data[d+1];
+				imageData.data[d+2] = 255 - imageData.data[d+2];
 			}
 			function gClear(screen) {
-				const ctx = getContext();
-				ctx.fillStyle = "black";
-				ctx.fillRect(0, 0, ctxWidth, ctxHeight);			
+				for (var d = 0; d < screen.data.length; d+=4) {
+					screen.data[d] = 0;
+					screen.data[d+1] = 0;
+					screen.data[d+2] = 0;
+					screen.data[d+3] = 255;
+				}
 			}
 			
 			
 			function gSetPixel(screen, x, y, color) {
 				x &= 0x7f;
 				y &= 0x3f;
-				const ctx = getContext();
-				color = color == 0 ? 0: 255;
-				const imageData = ctx.getImageData(0, 0, ctxWidth, ctxHeight);
-				put_pixel_in_image(imageData, x, y, color);
-				ctx.putImageData(imageData, 0, 0);
+
+				put_pixel_in_image(screen, x, y, color);
+				
 			}
 			function gCircle(screen, h, k, r, color) {
 				x &= 0x7f;   
 				y &= 0x3f;
-				color = color == 0 ? 0 : 255;
-				const ctx = getContext();
-				var imageData = ctx.getImageData(0, 0, ctxWidth, ctxHeight);
 				var x = 0;
 				var y = r;
 				var p = (3 - (2 * r));
 				do
 				  {
-					put_pixel_in_image(imageData, (h + x), (k + y), color);
-					put_pixel_in_image(imageData, (h + y), (k + x), color);
-					put_pixel_in_image(imageData, (h + y), (k - x), color);
-					put_pixel_in_image(imageData, (h + x), (k - y), color);
-					put_pixel_in_image(imageData, (h - x), (k - y), color);
-					put_pixel_in_image(imageData, (h - y), (k - x), color);
-					put_pixel_in_image(imageData, (h - y), (k + x), color);
-					put_pixel_in_image(imageData, (h - x), (k + y), color);
+					put_pixel_in_image(screen, (h + x), (k + y), color);
+					put_pixel_in_image(screen, (h + y), (k + x), color);
+					put_pixel_in_image(screen, (h + y), (k - x), color);
+					put_pixel_in_image(screen, (h + x), (k - y), color);
+					put_pixel_in_image(screen, (h - x), (k - y), color);
+					put_pixel_in_image(screen, (h - y), (k - x), color);
+					put_pixel_in_image(screen, (h - y), (k + x), color);
+					put_pixel_in_image(screen, (h - x), (k + y), color);
 				
 					x++;
 				
@@ -103,32 +151,24 @@
 					}
 				  }
 				  while (x <= y);
-				ctx.putImageData(imageData, 0, 0);
+
 			}
 			
 			function gFilledCircle(screen, h, k, r, color) {
 				x &= 0x7f;   
 				y &= 0x3f;
 				
-				color = color == 0 ? 0 : 255;
-				const ctx = getContext();
-				var imageData = ctx.getImageData(0, 0, ctxWidth, ctxHeight);
-				// ctx.strokeStyle = getStyle(color);
-				// ctx.fillStyle = getStyle(color);
-				// ctx.beginPath();				
-				// ctx.arc(x, y, radius, 0,  2 * Math.PI);
-				// ctx.stroke();
-				// ctx.fill();
+
 				var x = 0;
 				var y = r;
 				var p = (3 - (2 * r));
 				
 				do
 				{					
-					gLine(3, h+x, k+y, h+x, k-y, color); 
-					gLine(3, h+y, k+x, h+y, k-x, color); 
-					gLine(3, h-x, k+y, h-x, k-y, color); 
-					gLine(3, h-y, k-x, h-y, k+x, color); 
+					gLine(screen, h+x, k+y, h+x, k-y, color); 
+					gLine(screen, h+y, k+x, h+y, k-x, color); 
+					gLine(screen, h-x, k+y, h-x, k-y, color); 
+					gLine(screen, h-y, k-x, h-y, k+x, color); 
 				
 					x++;
 				
@@ -140,8 +180,7 @@
 					}
 				}
 				while (x <= y);
-				
-				ctx.putImageData(imageData, 0, 0);
+
 			}
 			function gLine(screen, x0, y0, x1, y1, color) {
 				x0 &= 0x7f;   
@@ -149,8 +188,7 @@
 				x1 &= 0x7f;
 				y1 &= 0x3f;
 				color = color == 0 ? 0 : 255;
-				const ctx = getContext();
-				var imageData = ctx.getImageData(0, 0, ctxWidth, ctxHeight);
+
 				var dy = y1 - y0;
 				var dx = x1 - x0;
 				var stepx, stepy;
@@ -160,7 +198,7 @@
 				dy <<= 1;                                                  // dy is now 2*dy
 				dx <<= 1;                                                  // dx is now 2*dx
 				
-				put_pixel_in_image(imageData, x0, y0, color);
+				put_pixel_in_image(screen, x0, y0, color);
 				if (dx > dy) {
 					fraction = dy - (dx >> 1);                         // same as 2*dy - dx
 					while (x0 != x1) {
@@ -170,7 +208,7 @@
 					}
 					x0 += stepx;
 					fraction += dy;                                    // same as fraction -= 2*dy
-					put_pixel_in_image(imageData, x0, y0, color);
+					put_pixel_in_image(screen, x0, y0, color);
 					}
 				} else {
 					var fraction = dx - (dy >> 1);
@@ -181,66 +219,97 @@
 					}
 					y0 += stepy;
 					fraction += dx;
-					put_pixel_in_image(imageData, x0, y0, color);
+					put_pixel_in_image(screen, x0, y0, color);
 					}
 				}
-				ctx.putImageData(imageData, 0, 0);
+
 				
 			}
-			
+
 			function gBox(screen, x, y, sizex, sizey, color) {
+
+				var i;
+				
 				sizex = sizex > 0x80 ?  0x80 : sizex;
 				sizey = sizey > 0x40 ?  0x40 : sizey;
-				const ctx = getContext();
-				ctx.strokeStyle = getStyle(color);
-				ctx.beginPath();
-				ctx.rect(x, y, sizex, sizey);
-				ctx.stroke();				
+				
+				for (i = 0; i < sizex; i++) {
+					put_pixel_in_image(screen, i + x, y, color);
+					put_pixel_in_image(screen, i + x, y + sizey - 1, color);
+				}
+				for (i = 0; i < sizey; i++) {
+					put_pixel_in_image(screen, x, y + i, color);
+					put_pixel_in_image(screen, x + sizex - 1, y + i, color);
+				}					
 			}
 			function gBoxFilled(screen, x, y, sizex, sizey, color) {
-				sizex = sizex > 0x80 ?  0x80 : sizex;
-				sizey = sizey > 0x40 ?  0x40 : sizey;
-				const ctx = getContext();
-				ctx.strokeStyle = getStyle(color);
-				ctx.fillStyle = getStyle(color);
-				ctx.beginPath();
-				ctx.rect(x, y, sizex, sizey);
-				ctx.stroke();
-				ctx.fill();				
+				gFillArea(screen, x, y, sizey, sizex, color);
 			}
 			function gFillArea(screen, x, y, sizex, sizey, color) {
+
+				var i, j;
+				
 				sizex = sizex > 0x80 ?  0x80 : sizex;
 				sizey = sizey > 0x40 ?  0x40 : sizey;
-				const ctx = getContext();
-				ctx.strokeStyle = getStyle(color);
-				ctx.fillStyle = getStyle(color);
-				ctx.beginPath();
-				ctx.rect(x, y, sizex, sizey);
-				ctx.stroke();
-				ctx.fill();				
-			}
-			function gInvertArea(screen, x, y, sizex, sizey) {
-				const ctx = getContext();
-				const imageData = ctx.getImageData(x, y, sizex, sizey);
-				for (let i = 0; i < imageData.data.length; i += 4) {
-				  imageData.data[i + 0] = 255 - imageData.data[i + 0];
-				  imageData.data[i + 1] = 255 - imageData.data[i+1];
-				  imageData.data[i + 2] = 255 - imageData.data[i+2];
-				  
-				 }
 				
-				ctx.putImageData(imageData, x, y);
+				for (i = 0; i < sizex; i++)
+					for (j = 0; j < sizey; j++)
+					put_pixel_in_image(screen, x + i, y + j, color);
+	
+		
+			}
+
+			function gInvertArea(screen, x, y, sizex, sizey) {
+
+				for (let j = y; j < y + sizey; j++) {
+					for (let i = x; i < x + sizex; i++) {
+						invert_pixel_in_image(screen, i, j);
+					}
+				}
 				
 			}
 			function gInvert(screen) {
 				gInvertArea(screen, 0, 0, ctxWidth, ctxHeight);
 			}
 			
-			function gFrame() {
-				// todo
+			function gFrame(screen, tmp) {
+				
+				var len = tmp.length;
+				var i;
+				// only if we got 1024 values
+				if (len == 1024) {
+					for (d = 0; d < 1024; d++) {
+						for (j = 0; j < 8; j++) {
+							c = (((tmp[d] >> j) & 0x01)) == 0 ? 0 : 255;
+							let i = (d * 8 + j) * 4;
+							screen.data[i] = c;
+							screen.data[i + 1] = c;
+							screen.data[i + 2] = c;
+							screen.data[i + 3] = 255;
+						}
+						
+
+					}
+				}
+				
 			}
 			
-			function gWaveform() {
+			function gWaveform(screen, tmp) {
+				
+				var len = tmp.length;
+				var i;
+				
+				
+				
+				// only if we got 128 values
+				if (len == 128) {
+					// draw 127 connected lines
+					for (i = 1; i < 128; i++) {
+						// app.oled(gScreen(msg.getInt(0))).draw_line(i - 1, tmp[i + 3], i, tmp[i + 4], 1);
+						gLine(screen, i - 1, tmp[i + 3], i, tmp[i + 4], 255);
+					}
+				}
+				
 				
 			}
 			
@@ -249,37 +318,45 @@
 				var len = line.length;
 				for (i = 0; i < len; i++) {
 					if (h == 8) {
-						deltax += put_char_small(line[i], deltax, y, color);
+						deltax += put_char_small(screen, line[i], deltax, y, color);
 						deltax += 1;
 					}
 					else if (h == 16) {
-					  	deltax += put_char_arial16(line[i], deltax, y, color);
+					  	deltax += put_char_arial16(screen, line[i], deltax, y, color);
 					  	deltax += 2;
 					}
 					else if (h == 24) {
-					  	deltax += put_char_arial24(line[i], deltax, y, color);
+					  	deltax += put_char_arial24(screen, line[i], deltax, y, color);
 					  	deltax += 3;
 					}
 					else if (h == 32) {
-						  deltax += put_char_arial32(line[i], deltax, y, color);
+						  deltax += put_char_arial32(screen, line[i], deltax, y, color);
 						  deltax += 4;
 					}
 				}
 			}
+			function println_8(screen, line, len, x, y) {
+			  var i, deltax;
+			  deltax = x;
+			  for (i = 0; i < len; i++) {
+				deltax += put_char_small(screen, line[i], deltax, y, 255);
+				deltax += 1;
+			  }
+			}
 			
 			function gCharacter(screen, c, x, y, color, size) {
 				if (size == 16) {
-					put_char_arial16(c, x, y, color);
+					put_char_arial16(screen, c, x, y, color);
 				} else if (size == 24) {
-					put_char_arial24(c, x, y, color);
+					put_char_arial24(screen, c, x, y, color);
 				} else if (size == 32) {
-					put_char_arial32(c, x, y, color);
+					put_char_arial32(screen, c, x, y, color);
 				} else {
-					put_char_small(c, y, x, color);
+					put_char_small(screen, c, x, y, color);
 				}
 			}
 			
-			function put_char_small(c, y, x, color) {
+			function put_char_small(screen, c, y, x, color) {
 				var i = j = 0;
 				c = c.charCodeAt(0);
 				if (c < 32) c = 32;
@@ -287,24 +364,22 @@
 				
 				c -= 32;
 				color = color == 0 ? 0 : 255;
-				
-				const imageData = ctx.getImageData(y, x, 5, 8);
+
 				
 					for (j = 0; j < 8; j++) {
 						for (i = 0; i < 5; i++) {
 					  if ((characters[(c * 5) + i] >> j) & 0x01) {
-						  put_pixel_in_image(imageData, i,j, color);
+						  put_pixel_in_image(screen, i+y,j+x, color);
 					  }
 					  
 
 					}
 				  }
-				
-				ctx.putImageData(imageData, y, x);
+
 				return 5;
 			}
 			
-			function put_char_arial16(character, y, x, color) {
+			function put_char_arial16(screen, character, y, x, color) {
 				var i = j = k = 0;
 				var charWidth = charOffset = 0;
 				
@@ -320,26 +395,24 @@
 			    charOffset = arial16Offset[character] * 2;
 				
 				color = color == 0 ? 0 : 255;
-				
-				const imageData = ctx.getImageData(y, x, charWidth, 16);
+
 				for (i = 0; i < 2; i++) {					
 					for (j = 0; j < 8; j++) {
 						for (k = 0; k < charWidth; k++) {
 							
 							if ((arial16[charOffset + k + (i * charWidth)] >> j) & 0x01) {
-								put_pixel_in_image(imageData, k, (i * 8) + j, color);
+								put_pixel_in_image(screen, y+ k, x + (i * 8) + j, color);
 							}
 					  	  	
 			
 						}
 				    }
 			  	}
-				
-				ctx.putImageData(imageData, y, x);
+
 				return charWidth;
 			}
 			
-			function put_char_arial24(character, y, x, color) {
+			function put_char_arial24(screen, character, y, x, color) {
 				var i = j = k = 0;
 				var charWidth = charOffset = 0;
 				
@@ -355,24 +428,22 @@
 				charOffset = arial24Offset[character] * 3;
 				
 				color = color == 0 ? 0 : 255;
-				
-				const imageData = ctx.getImageData(y, x, charWidth, 24);
+
 				for (i = 0; i < 3; i++) {					
 					for (j = 0; j < 8; j++) {
 						for (k = 0; k < charWidth; k++) {
 							
 							if ((arial24[charOffset + k + (i * charWidth)] >> j) & 0x01) {
-								put_pixel_in_image(imageData, k, (i * 8) + j, color);
+								put_pixel_in_image(screen, y + k, x + (i * 8) + j, color);
 							}
 						}
 					}
 				  }
-				
-				ctx.putImageData(imageData, y, x);
+
 				return charWidth;
 			}
 			
-			function put_char_arial32(character, y, x, color) {
+			function put_char_arial32(screen, character, y, x, color) {
 				var i = j = k = 0;
 				var charWidth = charOffset = 0;
 				
@@ -388,60 +459,149 @@
 				charOffset = arial32Offset[character] * 4;
 				
 				color = color == 0 ? 0 : 255;
-				
-				const imageData = ctx.getImageData(y, x, charWidth, 32);
+
 				for (i = 0; i < 4; i++) {					
 					for (j = 0; j < 8; j++) {
 						for (k = 0; k < charWidth; k++) {
 							
 							if ((arial32[charOffset + k + (i * charWidth)] >> j) & 0x01) {
-								put_pixel_in_image(imageData, k, (i * 8) + j, color);
+								put_pixel_in_image(screen, y + k, x + (i * 8) + j, color);
 							}
 						}
 					}
 				  }
-				
-				ctx.putImageData(imageData, y, x);
+
 				return charWidth;
 			}
 			
-			function drawBatteryMeter(lev) {
+			function drawBatteryMeter(screen, lev) {
 				var x = 112;
 				var y = 0;
-				gBox(3, x, y, 13, 7, 1);
-				gLine(3, x + 13, y + 2, x + 13, y + 4, 1);
-				gSetPixel(3, x, y, 0);
-				gSetPixel(3, x, y + 6, 0);  
+				gBox(screen, x, y, 13, 7, 255);
+				gLine(screen, x + 13, y + 2, x + 13, y + 4, 255);
+				gSetPixel(screen, x, y, 0);
+				gSetPixel(screen, x, y + 6, 0);  
 				
-				if (lev > 0) gLine(3, x + 2, y + 2, x + 2, y + 4, 1);
-				if (lev > 1) gLine(3, x + 4, y + 2, x + 4, y + 4, 1);
-				if (lev > 2) gLine(3, x + 6, y + 2, x + 6, y + 4, 1);
-				if (lev > 3) gLine(3, x + 8, y + 2, x + 8, y + 4, 1);
-				if (lev > 4) gLine(3, x + 10, y + 2, x + 10, y + 4, 1);
+				if (lev > 0) gLine(screen, x + 2, y + 2, x + 2, y + 4, 255);
+				if (lev > 1) gLine(screen, x + 4, y + 2, x + 4, y + 4, 255);
+				if (lev > 2) gLine(screen, x + 6, y + 2, x + 6, y + 4, 255);
+				if (lev > 3) gLine(screen, x + 8, y + 2, x + 8, y + 4, 255);
+				if (lev > 4) gLine(screen, x + 10, y + 2, x + 10, y + 4, 255);
+			}
+			function drawPlug(screen) {
+				gBoxFilled(screen, 113, 1, 5, 11, 255);
+			}
+			function drawWifiMeter(screen, lev) {
+				var x = 95;
+				var y = 0;
+				if (lev) {
+					put_pixel(255, x + 0, y + 0, screen);
+					put_pixel(255, x + 1, y + 0, screen);
+					put_pixel(255, x + 2, y + 0, screen);
+					put_pixel(255, x + 3, y + 0, screen);
+					put_pixel(255, x + 4, y + 0, screen);
+					put_pixel(255, x + 5, y + 0, screen);
+					put_pixel(255, x + 6, y + 0, screen);
+					put_pixel(255, x + 7, y + 0, screen);
+					put_pixel(255, x + 8, y + 0, screen);
+					put_pixel(255, x + 9, y + 0, screen);
+					put_pixel(255, x + 10, y + 0, screen);
+					
+					put_pixel(255, x + 1, y + 1, screen);
+					put_pixel(255, x + 5, y + 1, screen);
+					put_pixel(255, x + 9, y + 1, screen);
+					
+					put_pixel(255, x + 2, y + 2, screen);
+					put_pixel(255, x + 5, y + 2, screen);
+					put_pixel(255, x + 8, y + 2, screen);
+					
+					put_pixel(255, x + 3, y + 3, screen);
+					put_pixel(255, x + 5, y + 3, screen);
+					put_pixel(255, x + 7, y + 3, screen);
+					
+					put_pixel(255, x + 4, y + 4, screen);
+					put_pixel(255, x + 5, y + 4, screen);
+					put_pixel(255, x + 6, y + 4, screen);
+					
+					put_pixel(255, x + 5, y + 5, screen);
+					put_pixel(255, x + 5, y + 6, screen);
+				}	
+
+			}
+			function drawNotification(screen, line,  pwrStatus,  batteryLevel,  wifiStatus) {
+				var i, len;
+				gFillArea(screen, 0, 0, ctxWidth, 8, 0);
+				if (pwrStatus) {
+					drawBatteryMeter(screen, batteryLevel);
+				} else if (pwrStatus == false && batteryLevel && wifiStatus) {
+					// drawing full line
+					drawPlug(screen);
+				}
+				if (wifiStatus) {
+					drawWifiMeter(screen, wifiStatus);
+				}
+				len = line.length;
+				println_8(screen, line, len>21 ? 21: len,  2, 0);
+				
+
+
 			}
 			
 			
 			window.addEventListener("load", run);
 			
 			function run() {
-				gClear(3);
-				drawBatteryMeter(5);
-				// gSetPixel(3, 20, 20, 1);
-				// gSetPixel(3, 21, 21, 1);
-				gCircle(3, 20, 20, 4, 1);
-				gFilledCircle(3, 30, 20, 4, 1);
-				// gLine(3, 3, 2, 24, 43, 1);
-				// gBox(3, 60, 20, 5, 5, 1);
-				// gBoxFilled(3, 70, 20, 5, 5, 1);
-				// gFillArea(3, 80, 20, 5, 5, 1);
-				// gPrintln(3, 0, 0, 8, 1,  "abcde  *****");
-				// gPrintln(3, 0, 0, 32, 1, "ABCDEFG");
-				// gPrintln(3, 0, 32, 32, 1, "abcdefghijk");
-				gCharacter(3, "W", 32, 32, 1, 32);
+				const wave = [
+					0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,  11,  12,  13,  14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127
+				];
+				const frame = [];
+				for (i = 0; i < 1024; i++) {
+
+					// // frame[i] = 255;
+					if (i < 64) {
+						if (i < 8) {
+							frame[i] = 0x69;
+						} else {
+							frame[i] = 0;
+						}
+					} else if (i < 512) {
+						frame[i] = 0x0F;
+					} else {
+						frame[i] = 0xF0;
+					}
+
+				}
+				console.log(wave.length);
+				var screen = getScreen();
+				gClear(screen);
+				// gWaveform(screen, wave);
+				gFrame(screen, frame);
+				// 
+				// gSetPixel(screen, 20, 20, 255);
+				// gSetPixel(screen, 21, 21, 255);
+				// gCircle(screen, 20, 20, 4, 255);
+				// gFilledCircle(screen, 30, 20, 4, 255);
+				// gFillArea(screen, 40, 16, 20, 8, 255);
+				// gLine(screen, 3, 12, 24, 43, 255);
+
+				// gPrintln(screen, 0, 0, 8, 255,  "abcde  *****");
+
+				// gCharacter(screen, "W", 32, 32, 255, 32);
 				
-				put_char_small('H', 0, 20, 1);
-				// gInvertArea(3, 15, 20, 40, 40);
-				// gInvert(3);
+				// put_char_small(screen, 'H', 0, 20, 255);
+				// drawNotification(screen, "ORGANELLE M", 1, 3, 5);
+				
+				// drawPlug(screen);
+				// drawBatteryMeter(screen, 5);
+				// put_pixel(255, 64, 32, screen);
+				// drawWifiMeter(screen, true);
+				gFlip(screen);
+				// setLine(1, "Filter: 32");
+				// setLine(2, "Env: 0.3");
+				// setLine(3, "Res: 0.8");
+				// setLine(4, "Filter: 32");
+				// setLine(5, "Env: 0.3");
+				// invertLine(4);
 			}
 			
 			const characters = [0x0,0x0,0x0,0x0,0x0,
