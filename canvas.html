@@ -4,23 +4,538 @@
 		<meta charset="utf-8" />
 		<title></title>
 		<style>
-			
+			body {
+				
+			}
+			div.bg {
+				position: absolute;
+				width: 860;
+				height: 320px;
+				background: color(display-p3 0.514 0.573 0.667);
+				user-select: none;
+				-webkit-user-select: none;
+			}
 			canvas {
-				border: 1px solid black;
-				transform: scale(2) translate(64px,32px);
+				position: absolute;
+				transform: scale(2);
+				left: 500px;
+				top: 50px;
+			}
+			#knobs {
+				position: absolute;
+				top: 50px;
+				left: 20px;
+			}
+			#knobs span {
+				margin-right: 20px;
+			}
+			
+			#controls {
+				position: absolute;
+				top: 30px;
+				right: 20px;
+				
+			}
+			#digiUp {
+				position:absolute;
+				right: 100px;
+				top:0px;
+			}
+			#digiDown {
+				position:absolute;
+				right: 100px;
+				top:60px;
+			}
+			#volumeDial {
+				position: absolute;
+				top: 5px;
+				right:0px;
+			}
+			#keyboard {
+				position: absolute;
+				left:60px;
+				bottom: 0px;
+				
 			}
 		</style>
+		<script src="NexusUI.js"></script>
 	</head>
 	<body>
-		<canvas id='oled' width="128px" height="64px"></canvas>
-		
+		<div class='bg'>
+			<canvas id='oled' width="128px" height="64px"></canvas>
+			<div id="knobs">			
+				<span id="dial1">1</span>
+				<span id="dial2">2</span>
+				<span id="dial3">3</span>
+				<span id="dial4">4</span>
+				
+			</div>
+			<div id="controls">
+				<span id="digiUp"></span>
+				<span id="digiDown"></span>
+				<span id="volumeDial">Vol</span>
+			</div>
+			<dib id="keyboard">
+				
+			</dib>
+		</div>
 		
 		<script>
+			const SCREENS = {
+				AUX: 0,
+				MENU: 1,
+				PATCH: 2,
+				ALERT: 3,
+				SCREEN_MAX: 4
+			}
+					
+			var vu = {
+				inR: 0,
+				inL: 0,
+				outR: 0,
+				outL: 0,
+				peaks: 0,
+				pwrStatus: 1,
+				batteryLevel: 2,
+				wifiStatus: 0,
+				showInfoBar: 1
+				
+			}
 			
+			var knobs = [0,0,0,0,0,0];
 			var canvas = null;
 			var ctx = null;
+			var oled_screens = [null, null, null, null];			
 			const ctxWidth = 128;
 			const ctxHeight = 64;
+			const callbacks = {
+				"oled": oscOled
+			}
+			const oscCallbacks = {
+				"gClear": oscClear,
+				"gFlip": oscFlip,
+				"line": oscSetLine,
+				"vumeter": oscVuMeter,
+				"gSetPixel": oscSetPixel,
+				"gCircle": oscCircle,
+				"gLine": oscLine,
+				"gBox": oscBox,
+				"gFillArea":oscFillArea,
+				"gInvertArea": oscInvertArea,
+				"gInvert": oscInvert,
+				"gWaveform": oscWaveform,
+				"gPrintln": oscPrintln,
+				"gShowInfoBar": oscShowInfoBar
+				
+				
+			}
+			
+			function updateShowInfoBar() {
+				if (vu.showInfoBar == 1) {
+					drawInfoBar(vu.inR,vu.inL, vu.outR, vu.outL, vu.peaks, vu.pwrStatus, vu.batteryLevel, vu.wifiStatus);
+				}
+			}
+			function oscShowInfoBar(message) {
+				const s = Number(message.v[0]);
+				vu.showInfoBar = Number(message.v[1]);
+			}
+			
+			function oscVuMeter(message) {
+				vu.inR = Number(message.v[0]);
+				vu.inL = Number(message.v[1]);
+				vu.outR = Number(message.v[2]);
+				vu.outL = Number(message.v[3]);
+				vu.peaks = Number(message.v[4]);
+				updateShowInfoBar();
+			}
+			
+			function oscClear(message) {		
+				const s = Number(message.v[0]);
+				const screen = gScreen(s);
+				gClear(screen);
+				
+			}
+			function oscFlip(message) {
+				const s = Number(message.v[0]);
+				const screen = getScreen();
+				gFlip(screen);
+				updateShowInfoBar();				
+			}
+			function oscSetLine(message) {
+				
+				const lineNum = Number(message.path[3]);				
+				setLine(lineNum, message.v.join(" "));
+			}
+			
+			function oscSetPixel(message) {
+				const s = Number(message.v[0]);
+				const x = Number(message.v[1]);
+				const y = Number(message.v[2]);
+				const c = Number(message.v[3]);
+				const g = c == 0 ? 0 : 255;
+				gSetPixel(getScreen(), x, y, g);
+			}
+			
+			function oscCircle(message) {
+				const s = Number(message.v[0]);
+				const x = Number(message.v[1]);
+				const y = Number(message.v[2]);
+				const r = Number(message.v[3]);
+				const c = Number(message.v[4]);
+				const g = c == 0 ? 0 : 255;
+				gCircle(getScreen(), x, y, r, g);
+			}
+			
+			function oscBox(message) {
+				const s = Number(message.v[0]);
+				const x = Number(message.v[1]);
+				const y = Number(message.v[2]);
+				const width = Number(message.v[3]);
+				const height = Number(message.v[4]);
+				const c = Number(message.v[5]);
+				const g = c == 0 ? 0 : 255;
+				gBox(getScreen(), x, y, width, height, g);
+			}
+			function oscFillArea(message) {
+				const s = Number(message.v[0]);
+				const x = Number(message.v[1]);
+				const y = Number(message.v[2]);
+				const width = Number(message.v[3]);
+				const height = Number(message.v[4]);
+				const c = Number(message.v[5]);
+				const g = c == 0 ? 0 : 255;
+				gFillArea(getScreen(), x, y, width, height, g);
+				
+			}
+			function oscInvertArea(message) {
+				const s = Number(message.v[0]);
+				const x = Number(message.v[1]);
+				const y = Number(message.v[2]);
+				const width = Number(message.v[3]);
+				const height = Number(message.v[4]);
+				
+				gInvertArea(getScreen(), x, y, width, height);
+				
+			}
+			
+			function oscInvert(message) {
+				const s = Number(message.v[0]);
+				gInvert(getScreen());
+			}
+			
+			function oscPrintln(message) {
+				const s = Number(message.v[0]);
+				const x = Number(message.v[1]);
+				const y = Number(message.v[2]);
+				const size = Number(message.v[3]);
+				const c = Number(message.v[4]);
+				const g = c == 0 ? 0 : 255; 
+				const line = message.v.slice(5).join(" ");
+				gPrintln(getScreen(), x, y, size, g, line);
+			}
+			
+			
+			function oscLine(message) {
+				const s = Number(message.v[0]);
+				const x0 = Number(message.v[1]);
+				const y0 = Number(message.v[2]);
+				const x1 = Number(message.v[3]);
+				const y1 = Number(message.v[4]);
+				const c = Number(message.v[5]);
+				const g = c == 0 ? 0 : 255;
+				gLine(getScreen(), x0, y0, x1, y1, g);
+			}
+			function oscWaveform(message) {
+				const s = Number(message.v[0]);
+				const ba =  atob(message.v[1].base64);
+				const u8 = ba.split('').map(function(itm){
+					return itm.charCodeAt(0);
+				});
+				gWaveform(getScreen(), u8);
+			}
+			function oscOled(message) {
+				// console.log(message.path[2]);
+				try {
+					const cb = oscCallbacks[message.path[2]];
+					if (cb) {
+						cb(message);
+					}
+				} catch(e) {
+					console.log(e);
+				}
+
+				
+			}
+			function getKeyNum(code) {
+				
+				switch (code) {
+					case "ShiftLeft":
+						return 0;
+					case "KeyA": 
+						return 1;
+					case "KeyW":
+						return 2;
+					case "KeyS":
+						return 3;
+					case "KeyE": 
+						return 4;
+					case "KeyD":
+						return 5;
+					case "KeyF":
+						return 6;
+					case "KeyT": 
+						return 7;
+					case "KeyG":
+						return 8;
+					case "KeyY":
+						return 9;	
+					case "KeyH": 
+						return 10;
+					case "KeyU":
+						return 11;
+					case "KeyJ":
+						return 12;
+					case "KeyK":
+						return 13;	
+					case "KeyO":
+						return 14;
+					case "KeyL":
+						return 15;
+					case "KeyP":
+						return 16;																																
+												
+					
+					default:
+					    return -1;
+				}
+			}
+			function oscSendKey(socket, event, isOn, keyboard) {
+				const num = getKeyNum(event.code);
+				if (num == -1) {
+					return;
+				}
+				const obj = {
+					"address": "/key",
+					"v": [num, isOn]
+				}
+				if (num > 0) {
+					keyboard.toggleIndex(num - 1, isOn == 100);
+				}
+				
+				socket.send(JSON.stringify(obj));
+			}
+			
+			function run() {
+				
+				const messages = document.createElement("ul");
+					document.body.appendChild(messages);	
+				const socket = new WebSocket("ws://localhost:8002");
+				socket.onopen = ({v}) => {
+					vu.wifiStatus = 1;
+					updateShowInfoBar();
+				};
+				socket.onclose = ({v}) => {
+					vu.wifiStatus = 0;
+					updateShowInfoBar();
+				};
+				socket.onerror = ({v}) => {
+					vu.wifiStatus = 0;
+					console.log(v);
+					updateShowInfoBar();
+				};
+				socket.onmessage = ({ data }) => {
+					const d = JSON.parse(data);
+					const address = d.address;
+					const v = d.v;
+					
+					
+					d.path = address.split("/");
+					
+					try {
+						callbacks[d.path[1]](d);
+					} catch {
+						console.log("Unrecognized OSC address: " + data);
+						
+					}
+					
+					
+					// const message = document.createElement("li");
+					// const content = document.createTextNode(d.address);
+					// message.appendChild(content);
+					// messages.appendChild(message);
+					};
+				var keyboard = new Nexus.Piano("#keyboard", {
+					'lowNote': 60,
+					'highNote': 83,
+					'size':[800, 125]
+				});
+				keyboard.on('change', function(v) {
+					console.log(v);
+					const obj = {
+						"address": "/key",
+						"v": [v.note-59, v.state ? 100 : 0]
+					}
+					socket.send(JSON.stringify(obj));
+				});
+				var button = new Nexus.TextButton('#digiUp', {
+					'text': 'Up',
+					'size': [40,40]
+				});
+				button.on('change', function(v) {
+					
+				});
+				button = new Nexus.TextButton('#digiDown', {
+					'text': 'Down',
+					'size': [40,40]
+				});
+				button.on('change', function(v) {
+					
+				});
+				
+				var dial = new Nexus.Dial('#dial1', {
+					'interaction': 'vertical',
+					'min':0,
+					'max':1023,
+					'step':1
+				});		  
+				dial.on('change',function(v) {
+					knobs[0] = v ;
+					const obj = {
+						"address": "/knobs",
+						"v": knobs
+					}
+					socket.send(JSON.stringify(obj));
+					
+				});
+				dial = new Nexus.Dial('#dial2', {
+					'interaction': 'vertical',
+					'min':0,
+					'max':1023,
+					'step':1
+				});
+				dial.on('change',function(v) {
+					knobs[1] = v ;
+					const obj = {
+						"address": "/knobs",
+						"v": knobs
+					}
+					socket.send(JSON.stringify(obj));
+					
+				});
+				dial = new Nexus.Dial('#dial3', {
+					'interaction': 'vertical',
+					'min':0,
+					'max':1023,
+					'step':1
+				});		  
+				dial.on('change',function(v) {
+					knobs[2] = v ;
+					const obj = {
+						"address": "/knobs",
+						"v": knobs
+					}
+					socket.send(JSON.stringify(obj));
+					
+				});
+				dial = new Nexus.Dial('#dial4', {
+					'interaction': 'vertical',
+					'min':0,
+					'max':1023,
+					'step':1
+				});		  
+				dial.on('change',function(v) {
+					knobs[3] = v;
+					const obj = {
+						"address": "/knobs",
+						"v": knobs
+					}
+					socket.send(JSON.stringify(obj));
+					
+				});
+				dial = new Nexus.Dial('#volumeDial', {
+					'interaction': 'vertical',
+					'min':0,
+					'max':1023,
+					'step':1
+				});		
+				dial.colorize("accent","#f00");  
+				dial.on('change',function(v) {
+					knobs[4] = v;
+					const obj = {
+						"address": "/knobs",
+						"v": knobs
+					}
+					socket.send(JSON.stringify(obj));
+					
+				});
+				
+				
+				
+				document.addEventListener("keydown", (event) => {
+					if (event.repeat){
+						return;
+					}
+									
+					oscSendKey(socket, event, 100, keyboard);
+				});
+				document.addEventListener("keyup", (event) => {
+					oscSendKey(socket, event, 0, keyboard);
+				});
+				
+				  
+				const wave = [
+					0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,  11,  12,  13,  14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127
+				];
+				const frame = [];
+				for (i = 0; i < 1024; i++) {
+			
+					// // frame[i] = 255;
+					if (i < 64) {
+						if (i < 8) {
+							frame[i] = 0x69;
+						} else {
+							frame[i] = 0;
+						}
+					} else if (i < 512) {
+						frame[i] = 0x0F;
+					} else {
+						frame[i] = 0xF0;
+					}
+			
+				}
+				console.log(wave.length);
+				var screen = getScreen();
+				gClear(screen);
+				gFlip(screen);
+				// gWaveform(screen, wave);
+				// gFrame(screen, frame);
+				// 
+				// gSetPixel(screen, 20, 20, 255);
+				// gSetPixel(screen, 21, 21, 255);
+				// gCircle(screen, 20, 20, 4, 255);
+				// gFilledCircle(screen, 30, 20, 16, 255);
+				// gFillArea(screen, 40, 16, 20, 8, 255);
+				// gLine(screen, 3, 12, 24, 43, 255);
+			
+				// gPrintln(screen, 0, 0, 8, 255,  "abcde  *****");
+			
+				// gCharacter(screen, "W", 32, 32, 255, 32);
+				
+				// put_char_small(screen, 'H', 0, 20, 255);
+				// drawNotification(screen, "ORGANELLE M", 1, 2, 5);
+				
+				// drawPlug(screen);
+				// drawBatteryMeter(screen, 5);
+				// put_pixel(255, 64, 32, screen);
+				// drawWifiMeter(screen, true);
+				// gFlip(screen);
+				// setLine(1, "Filter: 32");
+				// setLine(2, "Env: 0.3");
+				// setLine(3, "Res: 0.8");
+				// setLine(4, "Filter: 32");
+				// setLine(5, "Env: 0.3");
+				// invertLine(4);
+			}
 			
 			function getContext() {
 				if (ctx == null) {
@@ -30,9 +545,25 @@
 				}
 				return ctx;
 			}
-			function getScreen() {
-				const ctx = getContext();
-				return ctx.getImageData(0, 0, ctxWidth, ctxHeight);
+			function makeScreen() {
+				const screen = new ImageData(ctxWidth, ctxHeight);
+				//make it opaque by default
+				for (var i = 0; i < screen.data.length; i+= 4) {
+					screen.data[0] = 0;
+					screen.data[i+1] = 0;
+					screen.data[i+2] = 0;
+					screen.data[i+3] = 255;
+				}
+			}
+			function gScreen(s) {
+				return (s - 1) < SCREENS.SCREEN_MAX ? getScreen(s-1) : getScreen(SCREENS.PATCH);
+			}
+			function getScreen(num) {
+				if (oled_screens[num] != null) {
+					return oled_screens[num];
+				}
+				oled_screens[num] = makeScreen();
+				return oled_screens[num];
 			}
 			function putScreen(screen) {
 				const ctx = getContext();
@@ -308,6 +839,8 @@
 						// app.oled(gScreen(msg.getInt(0))).draw_line(i - 1, tmp[i + 3], i, tmp[i + 4], 1);
 						gLine(screen, i - 1, tmp[i + 3], i, tmp[i + 4], 255);
 					}
+				} else {
+					console.log(len);
 				}
 				
 				
@@ -547,62 +1080,87 @@
 
 			}
 			
+			function drawInfoBar(inR, inL, outR,  outL, peaks, pwrStatus, batteryLevel, wifiStatus) {
+			
+			  var i, len;
+				
+			  // bounds for vu
+			  // i guess it goes up to 11 haha
+			  if (inR < 0) inR = 0;
+			  if (inR > 11) inR = 11;
+			  if (inL < 0) inL = 0;
+			  if (inL > 11) inL = 11;
+			
+			  if (outR < 0) outR = 0;
+			  if (outR > 11) outR = 11;
+			  if (outL < 0) outL = 0;
+			  if (outL > 11) outL = 11;
+			
+			  const ctx = getContext();
+			  const screen = ctx.getImageData(0, 0, ctxWidth, ctxHeight);
+			  
+			  gFillArea(screen, 0, 0, ctxWidth, 8, 0);
+			  
+			  if (pwrStatus) {
+				  drawBatteryMeter(screen, batteryLevel);
+			  } else if (pwrStatus == false && batteryLevel && wifiStatus) {
+				  // drawing full line
+				  drawPlug(screen);
+			  }
+			  if (wifiStatus) {
+				  drawWifiMeter(screen, wifiStatus);
+			  }
+			  
+			  // draw input output
+			  put_char_small(screen, 'I', 0, 0, 255);
+			  put_char_small(screen, 'O', 45, 0, 255);
+			
+			  // VU meter
+			  // after I
+			  // little guys
+			  for (i = 0; i<11; i+=1) {						  		  
+				gFillArea(screen, (i * 3) + 8, 1, 1, 1, 255);
+				gFillArea(screen, (i * 3) + 8, 5, 1, 1, 255);
+			  }
+			
+			  // big guys
+			  for (i = 0; i < (inR); i++) {
+				gFillArea(screen, (i * 3) + 7, 0, 3, 2, 255);
+			  }
+			
+			  for (i = 0; i < (inL); i++) {
+				gFillArea(screen, (i * 3) + 7, 4, 3, 2, 255);
+			  }
+			
+			  // after O
+			  // small guys
+			  for (i = 0; i<11; i+=1) {
+				gFillArea(screen,(i * 3) + 55, 1, 1, 1, 255);
+				gFillArea(screen,(i * 3) + 55, 5, 1, 1, 255);
+			  }
+			  
+			  // big guys
+			  for (i = 0; i < (outR); i++) {
+				gFillArea(screen, (i * 3) + 54, 0, 3, 2, 255);
+			  }
+			
+			  for (i = 0; i < (outL); i++) {
+				gFillArea(screen, (i * 3) + 54, 4, 3, 2, 255);
+			  }
+			
+			  // peaks
+			  if (peaks & 1) gFillArea(screen, (10 * 3) + 7, 0, 3, 2, 255);
+			  if (peaks & 2) gFillArea(screen, (10 * 3) + 7, 4, 3, 2), 255;
+			  if (peaks & 4) gFillArea(screen, (10 * 3) + 54, 0, 3, 2, 255);
+			  if (peaks & 8) gFillArea(screen, (10 * 3) + 54, 4, 3, 2, 255);
+			  
+			  putScreen(screen);
+			}
+			
 			
 			window.addEventListener("load", run);
 			
-			function run() {
-				const wave = [
-					0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,  11,  12,  13,  14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127
-				];
-				const frame = [];
-				for (i = 0; i < 1024; i++) {
-
-					// // frame[i] = 255;
-					if (i < 64) {
-						if (i < 8) {
-							frame[i] = 0x69;
-						} else {
-							frame[i] = 0;
-						}
-					} else if (i < 512) {
-						frame[i] = 0x0F;
-					} else {
-						frame[i] = 0xF0;
-					}
-
-				}
-				console.log(wave.length);
-				var screen = getScreen();
-				gClear(screen);
-				// gWaveform(screen, wave);
-				gFrame(screen, frame);
-				// 
-				// gSetPixel(screen, 20, 20, 255);
-				// gSetPixel(screen, 21, 21, 255);
-				// gCircle(screen, 20, 20, 4, 255);
-				// gFilledCircle(screen, 30, 20, 4, 255);
-				// gFillArea(screen, 40, 16, 20, 8, 255);
-				// gLine(screen, 3, 12, 24, 43, 255);
-
-				// gPrintln(screen, 0, 0, 8, 255,  "abcde  *****");
-
-				// gCharacter(screen, "W", 32, 32, 255, 32);
-				
-				// put_char_small(screen, 'H', 0, 20, 255);
-				// drawNotification(screen, "ORGANELLE M", 1, 3, 5);
-				
-				// drawPlug(screen);
-				// drawBatteryMeter(screen, 5);
-				// put_pixel(255, 64, 32, screen);
-				// drawWifiMeter(screen, true);
-				gFlip(screen);
-				// setLine(1, "Filter: 32");
-				// setLine(2, "Env: 0.3");
-				// setLine(3, "Res: 0.8");
-				// setLine(4, "Filter: 32");
-				// setLine(5, "Env: 0.3");
-				// invertLine(4);
-			}
+			
 			
 			const characters = [0x0,0x0,0x0,0x0,0x0,
 						/*0xff,0xff,0xff,0xff,0xff,*/
