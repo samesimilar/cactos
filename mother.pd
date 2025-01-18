@@ -201,7 +201,7 @@
 #X connect 19 0 20 0;
 #X connect 20 0 6 0;
 #X restore 76 202 pd audioIO;
-#N canvas 161 128 1265 661 messageIO 1;
+#N canvas 161 128 1265 661 messageIO 0;
 #X obj 244 251 tgl 15 0 empty empty empty 17 7 0 10 #fcfcfc #000000 #000000 0 1;
 #X obj 172 32 r oscOut;
 #X obj 450 94 t b b;
@@ -1123,6 +1123,8 @@
 #X obj 264 130 s encbut;
 #X obj 133 103 routeOSC /encoder/turn /encoder/button;
 #X text 64 10 If we get a bang to enableSubMenu we start recieving messages from the selector encoder. A goHome menu returns to the Organelle main menu.;
+#X floatatom 59 161 5 0 0 0 - - - 0;
+#X floatatom 343 170 5 0 0 0 - - - 0;
 #X connect 1 0 0 0;
 #X connect 2 0 6 0;
 #X connect 3 0 1 0;
@@ -1131,8 +1133,10 @@
 #X connect 6 0 5 0;
 #X connect 7 0 11 0;
 #X connect 8 0 9 0;
+#X connect 8 0 13 0;
 #X connect 11 0 8 0;
 #X connect 11 1 10 0;
+#X connect 11 1 14 0;
 #X restore 75 284 pd menuControl;
 #N canvas 432 163 404 168 META 0;
 #X text 12 113 VERSION 1.2;
