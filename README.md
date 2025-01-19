@@ -3,7 +3,7 @@ This project contains a system of components for running [Organelle](https://www
 
 ![img](screenshot1.png)
 
-It has 3 main components:
+### This project has 3 necessary components:
 
 * A slightly modified version of `mother.pd` that provides the runtime environment needed by Organelle patches in PureData.
 * A browser-based simulator (`index.html`) of the Organelle's OLED panel and hardware controls.
@@ -11,7 +11,7 @@ It has 3 main components:
 
 ## Installing
 
-The python script has two required dependencies: 
+The `oscweb.py` script has two required dependencies that need to be installed: 
 * websockets 14.1
 * python-osc 1.8
 
@@ -25,18 +25,33 @@ To Install (tested on macOS):
 Run the following commands:
 
 2. Open a terminal and change to the project directory: `cd /path/to/organelle-oled/project` 
-3. create virtual environment: `python3 -m venv .venv`
+3. Create virtual environment: `python3 -m venv .venv`
 	* This creates a `.venv` folder inside the current (project) folder to hold the dependencies that will be installed in step 5.
-4. activate virtual environment: `source .venv/bin/activate`
-5. install the required dependencies (websockets and python-osc): `python3 -m pip install -r requirements.txt`
+4. Activate virtual environment: `source .venv/bin/activate`
+5. Install the required dependencies (websockets and python-osc): `python3 -m pip install -r requirements.txt`
 
 ## Starting up
 
-To use an Organelle patch, start the components of this system in the following order:
+To use an Organelle patch, start the components of this system one-by-one in the following order:
 
 1. With the virtual environment activated in the Terminal (Step 4, above), run `python3 oscweb.py`
 2. Open `index.html` in Safari or Chrome. (e.g. Double-click this project's `index.html` file in the Finder on macOS.)
+	* The "wifi" icon will be displayed on the virtual OLED screen if it is able to connect to `oscweb.py`, and `oscweb.py` will print a message to the terminal when it accepts a connection.
 3. Open `mother.pd` in Pd.
 4. Open the Organelle patch you wish to edit or test in Pd.
 
 If your browser is not connected to the web socket, make sure `oscweb.py` is running, and reload `index.html`.
+
+## Keyboard Shortcuts
+
+* Left-shift: Aux key
+* Enter: Presses main encoder button
+* Up Arrow: Encoder counter-clockwise 
+* Down Arrow: Encoder clockwise
+* Keys asdf...: Piano keyboard keys
+* Q: Toggle piano keyboard octave for shortcut keys (lower octave vs. higher octave)
+
+
+Tip: Sometimes you have to twiddle the knobs (1-4) to get the Organelle patch to print to the screen.
+
+Tip: Don't forget to turn up the volume!
