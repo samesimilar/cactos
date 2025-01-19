@@ -1,11 +1,17 @@
 <!-- <!doctype html> -->
+<!-- CactOS v1.0 -->
+<!-- Controller for Organelle Patches -->
+<!-- Copyright 2025 Michael Spears mws@samesimilar.com -->
+<!-- This script contains sections of code adapted from the original C++ code in the Organelle OS (https://github.com/critterandguitari/Organelle_OS), -->
+<!-- provided under the BSD License by Critter & Guitari, the use of which is hereby acknowledged. -->
+
 <html lang="en-US">
 	<head>
 		<meta charset="utf-8" />
 		<title></title>
 		<style>
 			body {
-				
+				font-family: sans-serif;
 			}
 			div.bg {
 				position: absolute;
@@ -73,10 +79,27 @@
 				height: 30px;
 				background: rgb(146, 146, 146);
 				bottom: 96px;
+				border-radius: 8px;
+				border: solid 2px rgb(126, 126, 126);
 			}
 			#auxButton {
 				position: absolute;
 				bottom: 30px;
+			}
+			#kcontrols {
+				position: absolute;
+				bottom: 140px;
+				left: 80px;
+			}
+			#cacticle {
+				position: absolute;
+				background: #d81;
+				padding: 4px;
+				border-radius: 8px;
+				overflow: clip;
+				right:-14px;
+				top:4px;
+				border: solid 2px black;
 			}
 		</style>
 		<script src="NexusUI.js"></script>
@@ -96,17 +119,24 @@
 				<span id="digiEnter"></span>
 				<span id="digiDown"></span>
 				<span id="volumeDial">Vol</span>
+				<span id="cacticle">🌵</span>
 			</div>
 			<div id="aux">
 				<span id="led"></span>
 				<span id="auxButton">aux</span>
 			</div>
-			<dib id="keyboard">
+			<div id="kcontrols">
+				<span id="octToggle">⌨️ ↔️</span>
+			</div>
+			<div id="keyboard">
 				
-			</dib>
+			</div>
 		</div>
 		
 		<script>
+		    // connection info for the oscweb WebSocket server:
+			const OSC_WEB_HOST = "ws://localhost";
+		    const OSC_WEB_PORT = 8002;
 			const SCREENS = {
 				AUX: 0,
 				MENU: 1,
@@ -124,7 +154,8 @@
 				pwrStatus: 1,
 				batteryLevel: 2,
 				wifiStatus: 0,
-				showInfoBar: 1
+				showInfoBar: 1,
+				cactus: null
 				
 			}
 			
@@ -382,6 +413,9 @@
 					buttons.digiEnter.state = isOn == 100;
 					return;
 				}
+				if (event.code == "KeyQ" && isOn == 100) {
+					buttons.octToggle.flip();
+				}
 				
 				const num = getKeyNum(event.code);
 				if (num == -1) {
@@ -392,7 +426,12 @@
 					"v": [num, isOn]
 				}
 				if (num > 0) {
-					keyboard.toggleIndex(num - 1, isOn == 100);
+					const octOffset = buttons.octToggle.state ? 12 : 0;
+					const key = num - 1 + octOffset;
+					if (key < 24) {
+						keyboard.toggleIndex(key, isOn == 100);
+					}
+					
 				} else if (num == 0) {
 					buttons.aux.state = isOn == 100;
 				}
@@ -405,8 +444,10 @@
 				setLedColor(0);
 				const messages = document.createElement("ul");
 					document.body.appendChild(messages);	
-				const socket = new WebSocket("ws://localhost:8002");
+				const socket = new WebSocket(`${OSC_WEB_HOST}:${OSC_WEB_PORT}`);
 				const buttons = {};
+				const dials = {};
+				
 				socket.onopen = ({v}) => {
 					vu.wifiStatus = 1;
 					updateShowInfoBar(getScreen(SCREENS.PATCH));
@@ -414,34 +455,44 @@
 				socket.onclose = ({v}) => {
 					vu.wifiStatus = 0;
 					updateShowInfoBar(getScreen(SCREENS.PATCH));
+					console.log(v);
 				};
 				socket.onerror = ({v}) => {
 					vu.wifiStatus = 0;
 					console.log(v);
-					updateShowInfoBar(getScreen(SCREENS.PATCH));
+					const s = getScreen(SCREENS.PATCH);
+					setLine(s, 1, "Not connected");
+					setLine(s, 2, "to oscweb @");
+					setLine(s, 3, `${OSC_WEB_HOST}`);
+					setLine(s, 4, `Port ${OSC_WEB_PORT}`);
+					setLine(s, 5, "Start oscweb, refresh.");
+					updateShowInfoBar(s);
 				};
 				socket.onmessage = ({ data }) => {
 					const d = JSON.parse(data);
 					const address = d.address;
 					const v = d.v;
 					
-					
 					d.path = address.split("/");
 					
 					try {
 						callbacks[d.path[1]](d);
 					} catch {
-						console.log("Unrecognized OSC address: " + data);
-						
+						console.log("Unrecognized OSC address: " + data);						
 					}
 					
 					getScreen(SCREENS.PATCH).oscIn = 1;
+
+				};
+				
+				buttons.octToggle = new Nexus.Toggle("#octToggle", {
 					
-					// const message = document.createElement("li");
-					// const content = document.createTextNode(d.address);
-					// message.appendChild(content);
-					// messages.appendChild(message);
-					};
+				});
+				buttons.octToggle.on('change', function(v) {
+					
+				});
+				
+				
 				var keyboard = new Nexus.Piano("#keyboard", {
 					'lowNote': 60,
 					'highNote': 83,
@@ -494,6 +545,7 @@
 					'size': [30, 30],
 					'mode': 'toggle'
 				});
+				buttons.aux.colorize("accent","#d07");  
 				buttons.aux.on('change', function(v) {
 					const obj = {
 						"address": "/key",
@@ -503,14 +555,14 @@
 					// oscSendKey(socket, AUX_KEY_EVENT, v ? 100 : 0);
 				})
 				
-				var dial = new Nexus.Dial('#dial1', {
+				dials.dial1 = new Nexus.Dial('#dial1', {
 					'interaction': 'vertical',
 					'min':0,
 					'max':1023,
 					'step':1
 				});		  
-				dial.colorize("accent","#000");  
-				dial.on('change',function(v) {
+				dials.dial1.colorize("accent","#303");  
+				dials.dial1.on('change',function(v) {
 					knobs[0] = v ;
 					const obj = {
 						"address": "/knobs",
@@ -519,14 +571,14 @@
 					socket.send(JSON.stringify(obj));
 					
 				});
-				dial = new Nexus.Dial('#dial2', {
+				dials.dial2 = new Nexus.Dial('#dial2', {
 					'interaction': 'vertical',
 					'min':0,
 					'max':1023,
 					'step':1
 				});
-				dial.colorize("accent","#000");  
-				dial.on('change',function(v) {
+				dials.dial2.colorize("accent","#404");  
+				dials.dial2.on('change',function(v) {
 					knobs[1] = v ;
 					const obj = {
 						"address": "/knobs",
@@ -535,14 +587,14 @@
 					socket.send(JSON.stringify(obj));
 					
 				});
-				dial = new Nexus.Dial('#dial3', {
+				dials.dial3 = new Nexus.Dial('#dial3', {
 					'interaction': 'vertical',
 					'min':0,
 					'max':1023,
 					'step':1
 				});		  
-				dial.colorize("accent","#000");  
-				dial.on('change',function(v) {
+				dials.dial3.colorize("accent","#606");  
+				dials.dial3.on('change',function(v) {
 					knobs[2] = v ;
 					const obj = {
 						"address": "/knobs",
@@ -551,14 +603,14 @@
 					socket.send(JSON.stringify(obj));
 					
 				});
-				dial = new Nexus.Dial('#dial4', {
+				dials.dial4 = new Nexus.Dial('#dial4', {
 					'interaction': 'vertical',
 					'min':0,
 					'max':1023,
 					'step':1
 				});		  
-				dial.colorize("accent","#000");  
-				dial.on('change',function(v) {
+				dials.dial4.colorize("accent","#808");  
+				dials.dial4.on('change',function(v) {
 					knobs[3] = v;
 					const obj = {
 						"address": "/knobs",
@@ -567,14 +619,14 @@
 					socket.send(JSON.stringify(obj));
 					
 				});
-				dial = new Nexus.Dial('#volumeDial', {
+				dials.volume = new Nexus.Dial('#volumeDial', {
 					'interaction': 'vertical',
 					'min':0,
 					'max':1023,
 					'step':1
 				});		
-				dial.colorize("accent","#f00");  
-				dial.on('change',function(v) {
+				dials.volume.colorize("accent","#909");  
+				dials.volume.on('change',function(v) {
 					knobs[4] = v;
 					const obj = {
 						"address": "/knobs",
@@ -595,59 +647,28 @@
 					oscSendKey(socket, event, 0, keyboard, buttons);
 				});
 				
-				  
-				const wave = [
-					0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,  11,  12,  13,  14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127
-				];
-				const frame = [];
-				for (i = 0; i < 1024; i++) {
-			
-					// // frame[i] = 255;
-					if (i < 64) {
-						if (i < 8) {
-							frame[i] = 0x69;
-						} else {
-							frame[i] = 0;
-						}
-					} else if (i < 512) {
-						frame[i] = 0x0F;
-					} else {
-						frame[i] = 0xF0;
+				document.getElementById("cacticle").addEventListener("click", (event)=>{
+					if (vu.cactus != null) {
+						vu.cactus = null;
+						putScreen(getScreen(SCREENS.PATCH));
+						return; 
 					}
-			
-				}
+					const screen = makeScreen();
+					vu.cactus = screen;
+					setLine(screen, 2, "     CactOS v1.0");
+					if (vu.wifiStatus == 1) {
+						setLine(screen, 3, "        READY");
+					} else {
+						setLine(screen, 3, "   Not connected :(");
+					}
+					
+				});
+				
 				// console.log(wave.length);
 				var screen = getScreen(SCREENS.PATCH);
 				gClear(screen);
 				gFlip(screen);
-				// gWaveform(screen, wave);
-				// gFrame(screen, frame);
-				// 
-				// gSetPixel(screen, 20, 20, 255);
-				// gSetPixel(screen, 21, 21, 255);
-				// gCircle(screen, 20, 20, 4, 255);
-				// gFilledCircle(screen, 30, 20, 16, 255);
-				// gFillArea(screen, 40, 16, 20, 8, 255);
-				// gLine(screen, 3, 12, 24, 43, 255);
-			
-				// gPrintln(screen, 0, 0, 8, 255,  "abcde  *****");
-			
-				// gCharacter(screen, "W", 32, 32, 255, 32);
 				
-				// put_char_small(screen, 'H', 0, 20, 255);
-				// drawNotification(screen, "ORGANELLE M", 1, 2, 5);
-				
-				// drawPlug(screen);
-				// drawBatteryMeter(screen, 5);
-				// put_pixel(255, 64, 32, screen);
-				// drawWifiMeter(screen, true);
-				// gFlip(screen);
-				// setLine(1, "Filter: 32");
-				// setLine(2, "Env: 0.3");
-				// setLine(3, "Res: 0.8");
-				// setLine(4, "Filter: 32");
-				// setLine(5, "Env: 0.3");
-				// invertLine(4);
 			}
 			
 			function getContext() {
@@ -685,6 +706,7 @@
 			}
 			function putScreen(screen) {
 				const ctx = getContext();
+				screen = vu.cactus == null ? screen : vu.cactus;
 				ctx.putImageData(screen, 0, 0);
 			}
 			function calcxpos(line) {
@@ -1276,10 +1298,11 @@
 			
 			window.addEventListener("load", run);
 			
-			
+			// Section: FONT Data
+			// The following data structures contain data for rendering Organelle Fonts.
+			// They are copied from the Organelle OS source code at https://github.com/critterandguitari/Organelle_OS. 
 			
 			const characters = [0x0,0x0,0x0,0x0,0x0,
-						/*0xff,0xff,0xff,0xff,0xff,*/
 				0x0,0x0,0x4F,0x0,0x0,
 				0x0,0x7,0x0,0x7,0x0,
 				0x14,0x7F,0x14,0x7F,0x14,
