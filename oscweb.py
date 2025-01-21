@@ -41,7 +41,7 @@ internal_osc_pd_side_ip = "127.0.0.1"
 internal_osc_python_side_ip = "127.0.0.1"
 internal_osc_pd_side_port = 4000
 internal_osc_python_side_port = 4002
-external_websocket_interface_ip = "0.0.0.0"
+external_websocket_interface_ip = "127.0.0.1"
 external_websocket_port = 8002
 
 
